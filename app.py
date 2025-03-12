@@ -42,6 +42,12 @@ if uploaded_files:
     # Clean the column names by stripping any spaces
     master_df.columns = master_df.columns.str.strip()
 
+    # Ensure ID2 column is created correctly
+    category = master_df['filename']
+    ranks = category.value_counts().rank(method="first", ascending=False)
+    master_df['ranks'] = master_df['filename'].map(ranks)
+    master_df['ID2'] = master_df.apply(lambda row: f"{row['mouse']}_{row['ranks']}", axis=1)
+
     # Show the dataframe to ensure everything is correct
     st.write("Master Dataframe:")
     st.dataframe(master_df)
@@ -55,19 +61,28 @@ if uploaded_files:
 
     # Check if the user has selected any columns for grouping
     if columns_to_group:
-        # Group by the selected columns
-        try:
-            summary = master_df.groupby(columns_to_group).agg(
-                total_entries=('ID2', 'count'),  # Adjust the column to your needs
-                mean_value=('some_numeric_column', 'mean')  # Adjust the column to your needs
-            ).reset_index()
+        # Replace 'some_numeric_column' with a real numeric column from your data
+        numeric_columns = master_df.select_dtypes(include=['number']).columns.tolist()
 
-            # Show the summary
-            st.write("Summary Statistics based on selected grouping:")
-            st.dataframe(summary)
-        
-        except KeyError as e:
-            st.error(f"KeyError: One of the selected columns is not present. Please check your columns and try again.")
-            st.write(f"Error details: {e}")
+        if not numeric_columns:
+            st.error("No numeric columns found to calculate summary statistics.")
+        else:
+            # Let's assume the first numeric column is the one you want to calculate the summary for
+            numeric_column = numeric_columns[0]
+
+            # Group by the selected columns
+            try:
+                summary = master_df.groupby(columns_to_group).agg(
+                    total_entries=('ID2', 'count'),  # Adjust this as needed
+                    mean_value=(numeric_column, 'mean')  # Using the first numeric column for mean value
+                ).reset_index()
+
+                # Show the summary
+                st.write("Summary Statistics based on selected grouping:")
+                st.dataframe(summary)
+            
+            except KeyError as e:
+                st.error(f"KeyError: One of the selected columns is not present. Please check your columns and try again.")
+                st.write(f"Error details: {e}")
     else:
         st.write("Please select at least one column to group by.")
