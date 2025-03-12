@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import glob
-import os
 
-# File uploader or directory selection
+# Title for the app
 st.title('CSV File Uploader and Processor')
 
+# File uploader
 uploaded_files = st.file_uploader("Upload your CSV files", type=["csv"], accept_multiple_files=True)
 
 if uploaded_files:
@@ -16,7 +15,7 @@ if uploaded_files:
         df = pd.read_csv(uploaded_file)
         df['filename'] = uploaded_file.name  # Add filename as a column
         
-        # Extract variables from the filename (based on the structure you mentioned)
+        # Extract variables from the filename
         filename = uploaded_file.name
         
         # Extract Mouse ID (first part of filename)
@@ -40,36 +39,26 @@ if uploaded_files:
     # Concatenate all the dataframes into one master dataframe
     master_df = pd.concat(dataframes, ignore_index=True)
     
-    # Check and print the columns of the master dataframe
-    st.write("Columns in the Master DataFrame:")
-    st.write(master_df.columns)
-    
-    # Ensure that all the expected columns exist
-    expected_columns = ['mouse', 'position', 'class', 'condition2']
-    missing_columns = [col for col in expected_columns if col not in master_df.columns]
-    
-    if missing_columns:
-        st.write(f"Missing columns: {', '.join(missing_columns)}")
-    else:
-        # Create a new unique ID column (similar to what you did in R)
-        category = master_df['filename']
-        ranks = category.value_counts().rank(method="first", ascending=False)
-        master_df['ranks'] = master_df['filename'].map(ranks)
-        master_df['ID2'] = master_df.apply(lambda row: f"{row['mouse']}_{row['ranks']}", axis=1)
-        
-        # Show the concatenated dataframe with new variables
-        st.write("Master Dataframe:")
-        st.dataframe(master_df)
+    # Strip any extra spaces from column names
+    master_df.columns = master_df.columns.str.strip()
 
-        # Calculate and display the summary based on the metadata variables
-        # Ensure the column you're using for aggregation exists
-        if 'some_numeric_column' in master_df.columns:
-            summary = master_df.groupby(['mouse', 'position', 'class', 'condition2']).agg(
-                total_entries=('ID2', 'count'),
-                mean_value=('some_numeric_column', 'mean')  # Replace 'some_numeric_column' with the relevant column
-            ).reset_index()
-            
-            st.write("Summary Statistics:")
-            st.dataframe(summary)
-        else:
-            st.write("The 'some_numeric_column' is missing from the dataset. Please check the data.")
+    # Show the dataframe to ensure everything is correct
+    st.write("Master Dataframe:")
+    st.dataframe(master_df)
+
+    # Allow the user to select columns to group by
+    columns_to_group = st.multiselect('Select columns to group by', master_df.columns.tolist())
+
+    # Check if the user has selected any columns for grouping
+    if columns_to_group:
+        # Group by the selected columns
+        summary = master_df.groupby(columns_to_group).agg(
+            total_entries=('ID2', 'count'),  # Adjust the column to your needs
+            mean_value=('some_numeric_column', 'mean')  # Adjust the column to your needs
+        ).reset_index()
+        
+        # Show the summary
+        st.write("Summary Statistics based on selected grouping:")
+        st.dataframe(summary)
+    else:
+        st.write("Please select at least one column to group by.")
