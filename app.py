@@ -39,12 +39,16 @@ if uploaded_files:
     # Concatenate all the dataframes into one master dataframe
     master_df = pd.concat(dataframes, ignore_index=True)
     
-    # Strip any extra spaces from column names
+    # Clean the column names by stripping any spaces
     master_df.columns = master_df.columns.str.strip()
 
     # Show the dataframe to ensure everything is correct
     st.write("Master Dataframe:")
     st.dataframe(master_df)
+
+    # Display columns available for grouping
+    st.write("Columns available for grouping:")
+    st.write(master_df.columns.tolist())
 
     # Allow the user to select columns to group by
     columns_to_group = st.multiselect('Select columns to group by', master_df.columns.tolist())
@@ -52,13 +56,18 @@ if uploaded_files:
     # Check if the user has selected any columns for grouping
     if columns_to_group:
         # Group by the selected columns
-        summary = master_df.groupby(columns_to_group).agg(
-            total_entries=('ID2', 'count'),  # Adjust the column to your needs
-            mean_value=('some_numeric_column', 'mean')  # Adjust the column to your needs
-        ).reset_index()
+        try:
+            summary = master_df.groupby(columns_to_group).agg(
+                total_entries=('ID2', 'count'),  # Adjust the column to your needs
+                mean_value=('some_numeric_column', 'mean')  # Adjust the column to your needs
+            ).reset_index()
+
+            # Show the summary
+            st.write("Summary Statistics based on selected grouping:")
+            st.dataframe(summary)
         
-        # Show the summary
-        st.write("Summary Statistics based on selected grouping:")
-        st.dataframe(summary)
+        except KeyError as e:
+            st.error(f"KeyError: One of the selected columns is not present. Please check your columns and try again.")
+            st.write(f"Error details: {e}")
     else:
         st.write("Please select at least one column to group by.")
