@@ -40,21 +40,36 @@ if uploaded_files:
     # Concatenate all the dataframes into one master dataframe
     master_df = pd.concat(dataframes, ignore_index=True)
     
-    # Create a new unique ID column (similar to what you did in R)
-    category = master_df['filename']
-    ranks = category.value_counts().rank(method="first", ascending=False)
-    master_df['ranks'] = master_df['filename'].map(ranks)
-    master_df['ID2'] = master_df.apply(lambda row: f"{row['mouse']}_{row['ranks']}", axis=1)
+    # Check and print the columns of the master dataframe
+    st.write("Columns in the Master DataFrame:")
+    st.write(master_df.columns)
     
-    # Show the concatenated dataframe with new variables
-    st.write("Master Dataframe:")
-    st.dataframe(master_df)
+    # Ensure that all the expected columns exist
+    expected_columns = ['mouse', 'position', 'class', 'condition2']
+    missing_columns = [col for col in expected_columns if col not in master_df.columns]
+    
+    if missing_columns:
+        st.write(f"Missing columns: {', '.join(missing_columns)}")
+    else:
+        # Create a new unique ID column (similar to what you did in R)
+        category = master_df['filename']
+        ranks = category.value_counts().rank(method="first", ascending=False)
+        master_df['ranks'] = master_df['filename'].map(ranks)
+        master_df['ID2'] = master_df.apply(lambda row: f"{row['mouse']}_{row['ranks']}", axis=1)
+        
+        # Show the concatenated dataframe with new variables
+        st.write("Master Dataframe:")
+        st.dataframe(master_df)
 
-    # Calculate and display the summary based on the metadata variables
-    summary = master_df.groupby(['mouse', 'position', 'class', 'condition2']).agg(
-        total_entries=('ID2', 'count'),
-        mean_value=('some_numeric_column', 'mean')  # Replace 'some_numeric_column' with the relevant column
-    ).reset_index()
-    
-    st.write("Summary Statistics:")
-    st.dataframe(summary)
+        # Calculate and display the summary based on the metadata variables
+        # Ensure the column you're using for aggregation exists
+        if 'some_numeric_column' in master_df.columns:
+            summary = master_df.groupby(['mouse', 'position', 'class', 'condition2']).agg(
+                total_entries=('ID2', 'count'),
+                mean_value=('some_numeric_column', 'mean')  # Replace 'some_numeric_column' with the relevant column
+            ).reset_index()
+            
+            st.write("Summary Statistics:")
+            st.dataframe(summary)
+        else:
+            st.write("The 'some_numeric_column' is missing from the dataset. Please check the data.")
