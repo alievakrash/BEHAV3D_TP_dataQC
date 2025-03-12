@@ -1,25 +1,60 @@
 import streamlit as st
 import pandas as pd
+import glob
+import os
 
-st.title("📊 CSV Analyzer App")
+# File uploader or directory selection
+st.title('CSV File Uploader and Processor')
 
-# Upload CSV
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+uploaded_files = st.file_uploader("Upload your CSV files", type=["csv"], accept_multiple_files=True)
 
-if uploaded_file is not None:
-    # Read CSV
-    df = pd.read_csv(uploaded_file)
+if uploaded_files:
+    # Read and concatenate the CSV files
+    dataframes = []
+    for uploaded_file in uploaded_files:
+        # Read each CSV
+        df = pd.read_csv(uploaded_file)
+        df['filename'] = uploaded_file.name  # Add filename as a column
+        
+        # Extract variables from the filename (based on the structure you mentioned)
+        filename = uploaded_file.name
+        
+        # Extract Mouse ID (first part of filename)
+        df['mouse'] = filename.split('_')[0]
+        
+        # Extract Position (second part between first and second "_")
+        if len(filename.split('_')) > 1:
+            df['position'] = filename.split('_')[1]
+        
+        # Extract Condition 1 (third part after second "_")
+        if len(filename.split('_')) > 2:
+            df['class'] = filename.split('_')[2]
+        
+        # Extract Condition 2 (fourth part after third "_", if present)
+        if len(filename.split('_')) > 3:
+            df['condition2'] = filename.split('_')[3].split('.')[0]  # Removing file extension
+        
+        # Append the dataframe to the list
+        dataframes.append(df)
+    
+    # Concatenate all the dataframes into one master dataframe
+    master_df = pd.concat(dataframes, ignore_index=True)
+    
+    # Create a new unique ID column (similar to what you did in R)
+    category = master_df['filename']
+    ranks = category.value_counts().rank(method="first", ascending=False)
+    master_df['ranks'] = master_df['filename'].map(ranks)
+    master_df['ID2'] = master_df.apply(lambda row: f"{row['mouse']}_{row['ranks']}", axis=1)
+    
+    # Show the concatenated dataframe with new variables
+    st.write("Master Dataframe:")
+    st.dataframe(master_df)
 
-    # Show DataFrame
-    st.write("Here's a preview of your data:")
-    st.dataframe(df)
-
-    # Show basic stats
-    st.write("Basic Data Stats:")
-    st.write(df.describe())
-
-    # Download button for processed data
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("Download Clean CSV", csv, "clean_data.csv", "text/csv")
-else:
-    st.info("Please upload a CSV file to get started.")
+    # Calculate and display the summary based on the metadata variables
+    summary = master_df.groupby(['mouse', 'position', 'class', 'condition2']).agg(
+        total_entries=('ID2', 'count'),
+        mean_value=('some_numeric_column', 'mean')  # Replace 'some_numeric_column' with the relevant column
+    ).reset_index()
+    
+    st.write("Summary Statistics:")
+    st.dataframe(summary)
