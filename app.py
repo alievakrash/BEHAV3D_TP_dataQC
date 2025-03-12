@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-st.title('CSV File Uploader and Processor')
+st.title('CSV File Uploader and Processor with NA Check')
 
 # Upload CSV files
 uploaded_files = st.file_uploader("Upload your CSV files", type=["csv"], accept_multiple_files=True)
@@ -36,8 +36,23 @@ if uploaded_files:
     master_df['ID2'] = master_df.apply(lambda row: f"{row['mouse']}_{row['ranks']}", axis=1)
 
     # Show the master dataframe
-    st.write("Master Dataframe:")
+    st.write("### Master Dataframe:")
     st.dataframe(master_df)
+
+    # Check for missing values
+    st.write("### Missing Value Summary:")
+
+    # Display missing value counts per column
+    na_summary = master_df.isna().sum()
+    st.write(na_summary)
+
+    # Optionally display rows with ANY missing values
+    rows_with_na = master_df[master_df.isna().any(axis=1)]
+    if not rows_with_na.empty:
+        st.warning(f"Found {rows_with_na.shape[0]} rows with missing values:")
+        st.dataframe(rows_with_na)
+    else:
+        st.success("No missing values found in any row!")
 
     # Let the user select grouping columns
     columns_to_group = st.multiselect('Select columns to group by', master_df.columns.tolist())
@@ -55,6 +70,7 @@ if uploaded_files:
                 summary = master_df.groupby(columns_to_group)[numeric_columns].mean().reset_index()
 
                 st.success(f"Grouped by {columns_to_group} and calculated mean of numeric columns.")
+                st.write("### Summary Statistics:")
                 st.dataframe(summary)
 
             except KeyError as e:
