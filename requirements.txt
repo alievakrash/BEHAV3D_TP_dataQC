@@ -2,3 +2,4 @@ streamlit
 pandas
 numpy
 glob2
+matplotlib
