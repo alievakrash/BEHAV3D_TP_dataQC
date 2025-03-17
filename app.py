@@ -86,17 +86,18 @@ if uploaded_files:
     else:
         st.info("Please select one or more columns to group by.")
     
-    # Calculate number of timepoints per TRACK_ID and position
+    # Calculate number of timepoints per TRACK_ID, position, and mouse
     if 'TRACK_ID' in master_df.columns and 'FRAME' in master_df.columns:
-        track_counts = master_df.groupby(['position', 'TRACK_ID']).size().reset_index(name='timepoint_count')
+        track_counts = master_df.groupby(['mouse', 'position', 'TRACK_ID']).size().reset_index(name='timepoint_count')
 
-        # Plot histograms of timepoints per TRACK_ID
-        st.write("### Timepoint Distribution per TRACK_ID and Position:")
-        for position in track_counts['position'].unique():
-            position_data = track_counts[track_counts['position'] == position]
+        # Plot histograms of timepoints per TRACK_ID for each mouse and position
+        st.write("### Timepoint Distribution per TRACK_ID, Mouse, and Position:")
+        
+        # Loop over unique combinations of 'mouse' and 'position'
+        for (mouse, position), group_data in track_counts.groupby(['mouse', 'position']):
             fig, ax = plt.subplots()
-            ax.hist(position_data['timepoint_count'], bins=10, color='skyblue', edgecolor='black')
-            ax.set_title(f'Timepoint Distribution for Position {position}')
+            ax.hist(group_data['timepoint_count'], bins=10, color='skyblue', edgecolor='black')
+            ax.set_title(f'Timepoint Distribution for Mouse {mouse} and Position {position}')
             ax.set_xlabel('Number of Timepoints')
             ax.set_ylabel('Frequency')
             st.pyplot(fig)
