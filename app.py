@@ -9,48 +9,52 @@ st.title('CSV File Uploader and Processor with NA Check + TrackID Timepoints His
 uploaded_files = st.file_uploader("Upload your CSV files", type=["csv"], accept_multiple_files=True)
 
 if uploaded_files:
+    # Read and concatenate the CSV files
     dataframes = []
-
     for uploaded_file in uploaded_files:
         df = pd.read_csv(uploaded_file)
         df['filename'] = uploaded_file.name
-
+        
         # Extract variables from the filename
         filename = uploaded_file.name
-
-        # Parsing based on filename (customize as needed)
+        
         df['mouse'] = filename.split('_')[0]
         df['position'] = filename.split('_')[1] if len(filename.split('_')) > 1 else None
         df['class'] = filename.split('_')[2] if len(filename.split('_')) > 2 else None
         df['condition2'] = filename.split('_')[3].split('.')[0] if len(filename.split('_')) > 3 else None
-
-        # Combine mouse and position to create a unique position_id
-        df['position_id'] = df['mouse'].astype(str) + '_' + df['position'].astype(str)
-
+        
+        # Rename columns for flexibility (if TID is present, rename it to TRACK_ID, and if PID is present, rename to FRAME)
+        if 'TID' in df.columns:
+            df.rename(columns={'TID': 'TRACK_ID'}, inplace=True)
+        if 'PID' in df.columns:
+            df.rename(columns={'PID': 'FRAME'}, inplace=True)
+        
         dataframes.append(df)
-
+    
     # Combine all dataframes
     master_df = pd.concat(dataframes, ignore_index=True)
-
+    
     # Clean column names
     master_df.columns = master_df.columns.str.strip()
 
-    # Create unique ID2 column based on filename rank
+    # Create unique ID2 column
     category = master_df['filename']
     ranks = category.value_counts().rank(method="first", ascending=False)
     master_df['ranks'] = master_df['filename'].map(ranks)
     master_df['ID2'] = master_df.apply(lambda row: f"{row['mouse']}_{row['ranks']}", axis=1)
 
-    # Display master dataframe
-    st.write("### Master DataFrame")
+    # Show the master dataframe
+    st.write("### Master Dataframe:")
     st.dataframe(master_df)
 
     # Check for missing values
-    st.write("### Missing Value Summary")
+    st.write("### Missing Value Summary:")
+
+    # Display missing value counts per column
     na_summary = master_df.isna().sum()
     st.write(na_summary)
 
-    # Display rows with ANY missing values
+    # Optionally display rows with ANY missing values
     rows_with_na = master_df[master_df.isna().any(axis=1)]
     if not rows_with_na.empty:
         st.warning(f"Found {rows_with_na.shape[0]} rows with missing values:")
@@ -58,16 +62,18 @@ if uploaded_files:
     else:
         st.success("No missing values found in any row!")
 
-    # Multiselect for grouping columns
+    # Let the user select grouping columns
     columns_to_group = st.multiselect('Select columns to group by', master_df.columns.tolist())
 
     if columns_to_group:
+        # Find all numeric columns EXCEPT the ones used for grouping
         numeric_columns = master_df.select_dtypes(include='number').columns.tolist()
         numeric_columns = [col for col in numeric_columns if col not in columns_to_group]
 
         if not numeric_columns:
             st.warning("No numeric columns available for aggregation.")
         else:
+            # Group by the selected columns, then calculate the mean of all other numeric columns
             try:
                 summary = master_df.groupby(columns_to_group)[numeric_columns].mean().reset_index()
 
@@ -79,42 +85,20 @@ if uploaded_files:
                 st.error(f"KeyError: {e}")
     else:
         st.info("Please select one or more columns to group by.")
+    
+    # Calculate number of timepoints per TRACK_ID and position
+    if 'TRACK_ID' in master_df.columns and 'FRAME' in master_df.columns:
+        track_counts = master_df.groupby(['position', 'TRACK_ID']).size().reset_index(name='timepoint_count')
 
-    # ========================
-    # HISTOGRAM SECTION BELOW
-    # ========================
-
-    st.write("## Histograms: Number of Timepoints per TRACK_ID for each Position")
-
-    # Make sure you have 'TRACK_ID', 'position_id' and 'FRAME' columns
-    if 'TRACK_ID' in master_df.columns and 'FRAME' in master_df.columns and 'position_id' in master_df.columns:
-        
-        # Group by position_id and TRACK_ID to count timepoints
-        track_counts = (
-            master_df.groupby(['position_id', 'TRACK_ID'])
-            .size()
-            .reset_index(name='timepoint_count')
-        )
-
-        # Show the raw counts table if you like
-        st.write("### Timepoints per TRACK_ID per position_id")
-        st.dataframe(track_counts)
-
-        # Plot one histogram per position_id
-        positions = track_counts['position_id'].unique()
-
-        for pos in positions:
-            st.write(f"### Position: {pos}")
-            subset = track_counts[track_counts['position_id'] == pos]
-
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.hist(subset['timepoint_count'], bins=10, color='skyblue', edgecolor='black')
-            ax.set_title(f'Timepoints per TRACK_ID in {pos}')
-            ax.set_xlabel('Timepoints per TRACK_ID')
+        # Plot histograms of timepoints per TRACK_ID
+        st.write("### Timepoint Distribution per TRACK_ID and Position:")
+        for position in track_counts['position'].unique():
+            position_data = track_counts[track_counts['position'] == position]
+            fig, ax = plt.subplots()
+            ax.hist(position_data['timepoint_count'], bins=10, color='skyblue', edgecolor='black')
+            ax.set_title(f'Timepoint Distribution for Position {position}')
+            ax.set_xlabel('Number of Timepoints')
             ax.set_ylabel('Frequency')
-
             st.pyplot(fig)
-
     else:
-        st.warning("Required columns 'TRACK_ID', 'FRAME', or 'position_id' are missing in the dataframe!")
-
+        st.error("Columns 'TRACK_ID' and 'FRAME' (or 'TID' and 'PID') are required.")
