@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-st.title('CSV File Uploader and Processor with NA Check + TrackID Timepoints Histogram')
+st.title('CSV File Uploader and Processor with NA Check + Timepoint Analysis')
 
 # Upload CSV files
 uploaded_files = st.file_uploader("Upload your CSV files", type=["csv"], accept_multiple_files=True)
@@ -62,8 +62,8 @@ if uploaded_files:
     else:
         st.success("No missing values found in any row!")
 
-    # Let the user select grouping columns
-    columns_to_group = st.multiselect('Select columns to group by', master_df.columns.tolist())
+    # Let the user select grouping columns for summary stats
+    columns_to_group = st.multiselect('Select columns to group by (for summary statistics)', master_df.columns.tolist())
 
     if columns_to_group:
         # Find all numeric columns EXCEPT the ones used for grouping
@@ -86,20 +86,44 @@ if uploaded_files:
     else:
         st.info("Please select one or more columns to group by.")
     
-    # Calculate number of timepoints per TRACK_ID, position, and mouse
-    if 'TRACK_ID' in master_df.columns and 'FRAME' in master_df.columns:
-        track_counts = master_df.groupby(['mouse', 'position', 'TRACK_ID']).size().reset_index(name='timepoint_count')
+    # ---------------------------------------------
+    # ✅ NEW FEATURE: Plot unique counts per timepoint and position
+    # ---------------------------------------------
 
-        # Plot histograms of timepoints per TRACK_ID for each mouse and position
-        st.write("### Timepoint Distribution per TRACK_ID, Mouse, and Position:")
+    if 'FRAME' in master_df.columns:
+        # Let the user select a categorical column to count (default 'TRACK_ID')
+        categorical_cols = master_df.select_dtypes(include='object').columns.tolist()
         
-        # Loop over unique combinations of 'mouse' and 'position'
-        for (mouse, position), group_data in track_counts.groupby(['mouse', 'position']):
-            fig, ax = plt.subplots()
-            ax.hist(group_data['timepoint_count'], bins=10, color='skyblue', edgecolor='black')
-            ax.set_title(f'Timepoint Distribution for Mouse {mouse} and Position {position}')
-            ax.set_xlabel('Number of Timepoints')
-            ax.set_ylabel('Frequency')
-            st.pyplot(fig)
+        if not categorical_cols:
+            st.warning("No categorical columns available to count.")
+        else:
+            selected_cat_col = st.selectbox(
+                "Select categorical column to count unique values per Timepoint",
+                categorical_cols,
+                index=categorical_cols.index('TRACK_ID') if 'TRACK_ID' in categorical_cols else 0
+            )
+
+            st.write(f"### Number of unique '{selected_cat_col}' per Timepoint and Position:")
+
+            # Loop over each unique position
+            for position, group_data in master_df.groupby('position'):
+                if group_data.empty:
+                    continue
+                
+                count_data = (
+                    group_data.groupby('FRAME')[selected_cat_col]
+                    .nunique()
+                    .reset_index(name=f'unique_{selected_cat_col}_count')
+                )
+
+                fig, ax = plt.subplots()
+                ax.plot(count_data['FRAME'], count_data[f'unique_{selected_cat_col}_count'],
+                        marker='o', linestyle='-', color='teal')
+
+                ax.set_title(f"Unique {selected_cat_col} per Timepoint in Position {position}")
+                ax.set_xlabel('Timepoint (FRAME)')
+                ax.set_ylabel(f'Unique {selected_cat_col}')
+                ax.grid(True)
+                st.pyplot(fig)
     else:
-        st.error("Columns 'TRACK_ID' and 'FRAME' (or 'TID' and 'PID') are required.")
+        st.error("The column 'FRAME' (or 'PID') is required to generate the timepoint analysis.")
