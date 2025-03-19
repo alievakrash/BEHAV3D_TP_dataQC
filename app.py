@@ -83,38 +83,36 @@ if uploaded_files:
     # ✅ NEW FEATURE: Plot unique counts per timepoint and position
     # ---------------------------------------------
     if 'FRAME' in master_df.columns and 'position' in master_df.columns:
-        # Let the user select ANY column (categorical or numeric)
-        selectable_cols = master_df.columns.tolist()
-
-        selected_column = st.selectbox(
-            "Select column to count unique values per Timepoint (FRAME):",
-            selectable_cols,
-            index=selectable_cols.index('TRACK_ID') if 'TRACK_ID' in selectable_cols else 0
+        # Let the user select the x and y variables for plotting
+        x_axis_column = st.selectbox(
+            "Select the column to plot on the X-axis:",
+            ['FRAME', 'position']  # Allow for 'FRAME' or 'position' for X-axis
         )
 
-        st.write(f"### Number of unique '{selected_column}' per Timepoint (FRAME), grouped by Position")
+        y_axis_column = st.selectbox(
+            "Select the column to plot on the Y-axis:",
+            master_df.select_dtypes(include='number').columns.tolist()  # Allow numeric columns for Y-axis
+        )
+
+        st.write(f"### Plotting {y_axis_column} vs. {x_axis_column}")
 
         # Loop over each unique position
         for position, group_data in master_df.groupby('position'):
             if group_data.empty:
                 continue
 
-            # Group by FRAME and count unique values in selected_column
-            unique_counts = (
-                group_data.groupby('FRAME')[selected_column]
-                .nunique()
-                .reset_index(name=f'unique_{selected_column}_count')
-            )
+            # Group by selected X-axis column and calculate the mean for Y-axis column
+            plot_data = group_data.groupby(x_axis_column)[y_axis_column].mean().reset_index()
 
+            # Create the plot
             fig, ax = plt.subplots()
-            ax.plot(unique_counts['FRAME'], unique_counts[f'unique_{selected_column}_count'],
-                    marker='o', linestyle='-', color='teal')
-
-            ax.set_title(f"Unique {selected_column} per Timepoint in Position {position}")
-            ax.set_xlabel('Timepoint (FRAME)')
-            ax.set_ylabel(f'Unique {selected_column}')
+            ax.plot(plot_data[x_axis_column], plot_data[y_axis_column], marker='o', linestyle='-', color='teal')
+            ax.set_title(f'{y_axis_column} vs. {x_axis_column} for Position {position}')
+            ax.set_xlabel(x_axis_column)
+            ax.set_ylabel(y_axis_column)
             ax.grid(True)
 
+            # Show the plot
             st.pyplot(fig)
     else:
         st.error("The columns 'FRAME' and 'position' are required to generate the timepoint analysis.")
