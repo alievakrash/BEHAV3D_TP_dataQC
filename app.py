@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-st.title('CSV File Uploader and Processor with NA Check + Timepoint Analysis')
+st.title('CSV File Uploader and Processor with NA Check + Unique Value Counts Over Time')
 
 # Upload CSV files
 uploaded_files = st.file_uploader("Upload your CSV files", type=["csv"], accept_multiple_files=True)
@@ -49,12 +49,9 @@ if uploaded_files:
 
     # Check for missing values
     st.write("### Missing Value Summary:")
-
-    # Display missing value counts per column
     na_summary = master_df.isna().sum()
     st.write(na_summary)
 
-    # Optionally display rows with ANY missing values
     rows_with_na = master_df[master_df.isna().any(axis=1)]
     if not rows_with_na.empty:
         st.warning(f"Found {rows_with_na.shape[0]} rows with missing values:")
@@ -66,21 +63,17 @@ if uploaded_files:
     columns_to_group = st.multiselect('Select columns to group by (for summary statistics)', master_df.columns.tolist())
 
     if columns_to_group:
-        # Find all numeric columns EXCEPT the ones used for grouping
         numeric_columns = master_df.select_dtypes(include='number').columns.tolist()
         numeric_columns = [col for col in numeric_columns if col not in columns_to_group]
 
         if not numeric_columns:
             st.warning("No numeric columns available for aggregation.")
         else:
-            # Group by the selected columns, then calculate the mean of all other numeric columns
             try:
                 summary = master_df.groupby(columns_to_group)[numeric_columns].mean().reset_index()
-
                 st.success(f"Grouped by {columns_to_group} and calculated mean of numeric columns.")
                 st.write("### Summary Statistics:")
                 st.dataframe(summary)
-
             except KeyError as e:
                 st.error(f"KeyError: {e}")
     else:
@@ -89,41 +82,39 @@ if uploaded_files:
     # ---------------------------------------------
     # ✅ NEW FEATURE: Plot unique counts per timepoint and position
     # ---------------------------------------------
+    if 'FRAME' in master_df.columns and 'position' in master_df.columns:
+        # Let the user select ANY column (categorical or numeric)
+        selectable_cols = master_df.columns.tolist()
 
-    if 'FRAME' in master_df.columns:
-        # Let the user select a categorical column to count (default 'TRACK_ID')
-        categorical_cols = master_df.select_dtypes(include='object').columns.tolist()
-        
-        if not categorical_cols:
-            st.warning("No categorical columns available to count.")
-        else:
-            selected_cat_col = st.selectbox(
-                "Select categorical column to count unique values per Timepoint",
-                categorical_cols,
-                index=categorical_cols.index('TRACK_ID') if 'TRACK_ID' in categorical_cols else 0
+        selected_column = st.selectbox(
+            "Select column to count unique values per Timepoint (FRAME):",
+            selectable_cols,
+            index=selectable_cols.index('TRACK_ID') if 'TRACK_ID' in selectable_cols else 0
+        )
+
+        st.write(f"### Number of unique '{selected_column}' per Timepoint (FRAME), grouped by Position")
+
+        # Loop over each unique position
+        for position, group_data in master_df.groupby('position'):
+            if group_data.empty:
+                continue
+
+            # Group by FRAME and count unique values in selected_column
+            unique_counts = (
+                group_data.groupby('FRAME')[selected_column]
+                .nunique()
+                .reset_index(name=f'unique_{selected_column}_count')
             )
 
-            st.write(f"### Number of unique '{selected_cat_col}' per Timepoint and Position:")
+            fig, ax = plt.subplots()
+            ax.plot(unique_counts['FRAME'], unique_counts[f'unique_{selected_column}_count'],
+                    marker='o', linestyle='-', color='teal')
 
-            # Loop over each unique position
-            for position, group_data in master_df.groupby('position'):
-                if group_data.empty:
-                    continue
-                
-                count_data = (
-                    group_data.groupby('FRAME')[selected_cat_col]
-                    .nunique()
-                    .reset_index(name=f'unique_{selected_cat_col}_count')
-                )
+            ax.set_title(f"Unique {selected_column} per Timepoint in Position {position}")
+            ax.set_xlabel('Timepoint (FRAME)')
+            ax.set_ylabel(f'Unique {selected_column}')
+            ax.grid(True)
 
-                fig, ax = plt.subplots()
-                ax.plot(count_data['FRAME'], count_data[f'unique_{selected_cat_col}_count'],
-                        marker='o', linestyle='-', color='teal')
-
-                ax.set_title(f"Unique {selected_cat_col} per Timepoint in Position {position}")
-                ax.set_xlabel('Timepoint (FRAME)')
-                ax.set_ylabel(f'Unique {selected_cat_col}')
-                ax.grid(True)
-                st.pyplot(fig)
+            st.pyplot(fig)
     else:
-        st.error("The column 'FRAME' (or 'PID') is required to generate the timepoint analysis.")
+        st.error("The columns 'FRAME' and 'position' are required to generate the timepoint analysis.")
