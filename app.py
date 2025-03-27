@@ -11,16 +11,23 @@ uploaded_files = st.file_uploader("Upload your CSV files", type=["csv"], accept_
 if uploaded_files:
     dataframes = []
     
+    # User input for header and data start row
+    st.write("### Specify File Structure")
+    column_row = st.number_input("Enter the row number that contains column names (0-based index)", min_value=0, value=0, step=1)
+    data_start_row = st.number_input("Enter the row number where data starts (0-based index)", min_value=0, value=column_row + 1, step=1)
+
     for uploaded_file in uploaded_files:
-        df = pd.read_csv(uploaded_file)
+        # Read CSV with user-defined parameters
+        df = pd.read_csv(uploaded_file, header=column_row, skiprows=range(1, data_start_row))
+
         df['filename'] = uploaded_file.name
         
         # Extract metadata from filename
-        filename = uploaded_file.name
-        df['mouse'] = filename.split('_')[0]
-        df['position'] = filename.split('_')[1] if len(filename.split('_')) > 1 else None
-        df['class'] = filename.split('_')[2] if len(filename.split('_')) > 2 else None
-        df['condition2'] = filename.split('_')[3].split('.')[0] if len(filename.split('_')) > 3 else None
+        filename_parts = uploaded_file.name.split('_')
+        df['mouse'] = filename_parts[0]
+        df['position'] = filename_parts[1] if len(filename_parts) > 1 else None
+        df['class'] = filename_parts[2] if len(filename_parts) > 2 else None
+        df['condition2'] = filename_parts[3].split('.')[0] if len(filename_parts) > 3 else None
         
         # Rename columns if present
         if 'TID' in df.columns:
