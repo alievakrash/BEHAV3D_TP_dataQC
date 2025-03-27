@@ -3,6 +3,14 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Clear cache to prevent memory overload
+st.cache_data.clear()
+st.cache_resource.clear()
+
+# Reset session state to remove stored data
+for key in list(st.session_state.keys()):
+    del st.session_state[key]
+    
 st.title('CSV Processor with Quality Control and Visualization')
 
 # Upload CSV files
